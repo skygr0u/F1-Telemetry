@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# FastF1 cache
+cache/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Secrets and local environment
+.env
+
+# macOS / editors / Office lock files
+.DS_Store
+.vscode/
+~$*
+
+# Data: small CSV snapshots are allowed, anything else is ignored
+data/raw/*
+!data/raw/*.csv
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Hide docx and notes.txt
+*.docx
+Notes.txt
+/Documents
