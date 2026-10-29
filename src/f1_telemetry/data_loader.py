@@ -29,17 +29,21 @@ class SessionLoadError(Exception):
 
 
 def setup_cache(cache_dir: str | Path = DEFAULT_CACHE_DIR) -> Path:
-    """Create the cache folder and enable the FastF1 cache.
+    """
+    Create the cache folder and enable the FastF1 cache.
 
     The cache stores downloaded data on disk, so a session is downloaded only
     once and later runs are fast.
 
-    Args:
-        cache_dir: Folder used for the cache. Defaults to ``cache/`` in the
-            project root.
+    Parameters
+    ----------
+    cache_dir : str or Path, optional
+        Folder used for the cache. Defaults to ``cache/`` in the project root.
 
-    Returns:
-        The cache folder as a Path.
+    Returns
+    -------
+    Path
+        The cache folder.
     """
     cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -48,23 +52,31 @@ def setup_cache(cache_dir: str | Path = DEFAULT_CACHE_DIR) -> Path:
 
 
 def resolve_race(year: int, race: str | int) -> int:
-    """Find the round number of a race from a name, location, country or round.
+    """
+    Find the round number of a race from a name, location, country or round.
 
     FastF1 guesses the closest race name, so a typo can silently load a
     different race (for example 'Atlantis' became the Australian Grand Prix).
     This function accepts only one unambiguous match from the season calendar.
 
-    Args:
-        year: Season, for example 2022.
-        race: Part of the race name, location or country (any letter case),
-            or the round number as an integer.
+    Parameters
+    ----------
+    year : int
+        Season, for example 2022.
+    race : str or int
+        Part of the race name, location or country (any letter case), or the
+        round number as an integer.
 
-    Returns:
+    Returns
+    -------
+    int
         The round number of the race.
 
-    Raises:
-        SessionLoadError: If nothing matches, several races match, or the
-            round number does not exist.
+    Raises
+    ------
+    SessionLoadError
+        If nothing matches, several races match, or the round number does not
+        exist.
     """
     calendar = list_races(year)
     if isinstance(race, int):
@@ -100,7 +112,8 @@ def resolve_race(year: int, race: str | int) -> int:
 def load_session(
     year: int, grand_prix: str | int, session_type: str, messages: bool = True
 ):
-    """Load one session of a Grand Prix weekend with lap and result data.
+    """
+    Load one session of a Grand Prix weekend with lap and result data.
 
     The race is looked up in the season calendar with ``resolve_race`` and
     loaded by round number, so FastF1 never has to guess a name. Telemetry
@@ -109,20 +122,28 @@ def load_session(
     default, because the ``Deleted`` and ``DeletedReason`` columns of the laps
     are only filled when they are loaded.
 
-    Args:
-        year: Season, for example 2022.
-        grand_prix: Part of the race name, location or country (for example
-            "Bahrain" or "Monza"), or the round number.
-        session_type: One of FP1, FP2, FP3, Q, SQ, SS, S, R.
-        messages: Whether to load race control messages.
+    Parameters
+    ----------
+    year : int
+        Season, for example 2022.
+    grand_prix : str or int
+        Part of the race name, location or country (for example "Bahrain" or
+        "Monza"), or the round number.
+    session_type : str
+        One of FP1, FP2, FP3, Q, SQ, SS, S, R.
+    messages : bool, optional
+        Whether to load race control messages. Defaults to True.
 
-    Returns:
+    Returns
+    -------
+    fastf1.core.Session
         The loaded FastF1 session.
 
-    Raises:
-        SessionLoadError: If the session type is unknown, the race cannot be
-            identified, the session does not exist, or the data cannot be
-            downloaded.
+    Raises
+    ------
+    SessionLoadError
+        If the session type is unknown, the race cannot be identified, the
+        session does not exist, or the data cannot be downloaded.
     """
     session_type = session_type.upper()
     if session_type not in VALID_SESSION_TYPES:
@@ -147,18 +168,26 @@ def load_session(
         ) from exc
     return session
 
+
 def list_races(year: int) -> pd.DataFrame:
-    """List the Grand Prix of a season, so that any race can be chosen.
+    """
+    List the Grand Prix of a season, so that any race can be chosen.
 
-    Args:
-        year: Season, for example 2022.
+    Parameters
+    ----------
+    year : int
+        Season, for example 2022.
 
-    Returns:
-        A DataFrame with one row per race and the columns RoundNumber,
-        EventName, Country, Location, EventDate and EventFormat.
+    Returns
+    -------
+    pandas.DataFrame
+        One row per race, with the columns RoundNumber, EventName, Country,
+        Location, EventDate and EventFormat.
 
-    Raises:
-        SessionLoadError: If the calendar cannot be loaded.
+    Raises
+    ------
+    SessionLoadError
+        If the calendar cannot be loaded.
     """
     try:
         schedule = fastf1.get_event_schedule(year, include_testing=False)
@@ -174,24 +203,34 @@ def list_races(year: int) -> pd.DataFrame:
 
 
 def get_laps(session) -> pd.DataFrame:
-    """Return the laps of a loaded session as a plain DataFrame.
+    """
+    Return the laps of a loaded session as a plain DataFrame.
 
-    Args:
-        session: A loaded FastF1 session.
+    Parameters
+    ----------
+    session : fastf1.core.Session
+        A loaded FastF1 session.
 
-    Returns:
+    Returns
+    -------
+    pandas.DataFrame
         One row per driver per lap, as a new DataFrame.
     """
     return pd.DataFrame(session.laps).reset_index(drop=True)
 
 
 def get_results(session) -> pd.DataFrame:
-    """Return the official results of a loaded session as a plain DataFrame.
+    """
+    Return the official results of a loaded session as a plain DataFrame.
 
-    Args:
-        session: A loaded FastF1 session.
+    Parameters
+    ----------
+    session : fastf1.core.Session
+        A loaded FastF1 session.
 
-    Returns:
+    Returns
+    -------
+    pandas.DataFrame
         One row per driver, with grid position and final position.
     """
     return pd.DataFrame(session.results).reset_index(drop=True)
@@ -204,16 +243,25 @@ def snapshot_path(
     kind: str,
     data_dir: str | Path = DEFAULT_DATA_DIR,
 ) -> Path:
-    """Build the file name of a CSV snapshot, for example 2022_bahrain_R_laps.csv.
+    """
+    Build the path of a CSV snapshot, e.g. ``2022_bahrain_R_laps.csv``.
 
-    Args:
-        year: Season.
-        grand_prix: Name of the Grand Prix.
-        session_type: Session code, for example "R".
-        kind: What the file contains, for example "laps" or "results".
-        data_dir: Folder for snapshots. Defaults to ``data/raw/``.
+    Parameters
+    ----------
+    year : int
+        Season.
+    grand_prix : str
+        Name of the Grand Prix.
+    session_type : str
+        Session code, for example "R".
+    kind : str
+        What the file contains, for example "laps" or "results".
+    data_dir : str or Path, optional
+        Folder for snapshots. Defaults to ``data/raw/``.
 
-    Returns:
+    Returns
+    -------
+    Path
         The full path of the snapshot file.
     """
     slug = grand_prix.strip().lower().replace(" ", "_")
@@ -221,13 +269,19 @@ def snapshot_path(
 
 
 def save_dataframe(df: pd.DataFrame, path: str | Path) -> Path:
-    """Save a DataFrame as CSV, creating missing folders.
+    """
+    Save a DataFrame as CSV, creating missing folders.
 
-    Args:
-        df: The table to save.
-        path: Destination file.
+    Parameters
+    ----------
+    df : pandas.DataFrame
+        The table to save.
+    path : str or Path
+        Destination file.
 
-    Returns:
+    Returns
+    -------
+    Path
         The path of the written file.
     """
     path = Path(path)
@@ -241,19 +295,28 @@ def load_dataframe(
     timedelta_columns: list[str] | None = None,
     datetime_columns: list[str] | None = None,
 ) -> pd.DataFrame:
-    """Read a CSV snapshot and restore time columns.
+    """
+    Read a CSV snapshot and restore time columns.
 
-    Args:
-        path: CSV file to read.
-        timedelta_columns: Columns to convert back to timedeltas, for example
-            LAP_TIMEDELTA_COLUMNS. Names that are not in the file are ignored.
-        datetime_columns: Columns to convert back to datetimes.
+    Parameters
+    ----------
+    path : str or Path
+        CSV file to read.
+    timedelta_columns : list of str, optional
+        Columns to convert back to timedeltas, for example
+        ``LAP_TIMEDELTA_COLUMNS``. Names that are not in the file are ignored.
+    datetime_columns : list of str, optional
+        Columns to convert back to datetimes.
 
-    Returns:
+    Returns
+    -------
+    pandas.DataFrame
         The table, with ``DriverNumber`` kept as text as in FastF1.
 
-    Raises:
-        FileNotFoundError: If the file does not exist.
+    Raises
+    ------
+    FileNotFoundError
+        If the file does not exist.
     """
     path = Path(path)
     if not path.exists():
