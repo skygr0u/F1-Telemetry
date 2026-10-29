@@ -43,7 +43,8 @@ def test_roundtrip_restores_timedeltas_and_driver_number(tmp_path):
         {
             "Driver": ["VER", "LEC"],
             "DriverNumber": ["1", "16"],
-            "LapTime": pd.to_timedelta(["00:01:35.123", pd.NaT]),        }
+            "LapTime": pd.to_timedelta(["00:01:35.123", pd.NaT]),
+        }
     )
     path = save_dataframe(laps, tmp_path / "sub" / "laps.csv")
     loaded = load_dataframe(path, timedelta_columns=["LapTime"])

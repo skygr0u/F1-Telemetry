@@ -16,9 +16,17 @@ VALID_SESSION_TYPES = ("FP1", "FP2", "FP3", "Q", "SQ", "SS", "S", "R")
 # Columns that FastF1 stores as timedeltas or datetimes. A CSV file stores them
 # as text, so load_dataframe converts them back when asked.
 LAP_TIMEDELTA_COLUMNS = [
-    "Time", "LapTime", "LapStartTime", "PitOutTime", "PitInTime",
-    "Sector1Time", "Sector2Time", "Sector3Time",
-    "Sector1SessionTime", "Sector2SessionTime", "Sector3SessionTime",
+    "Time",
+    "LapTime",
+    "LapStartTime",
+    "PitOutTime",
+    "PitInTime",
+    "Sector1Time",
+    "Sector2Time",
+    "Sector3Time",
+    "Sector1SessionTime",
+    "Sector2SessionTime",
+    "Sector3SessionTime",
 ]
 LAP_DATETIME_COLUMNS = ["LapStartDate"]
 RESULT_TIMEDELTA_COLUMNS = ["Q1", "Q2", "Q3", "Time"]
@@ -90,9 +98,7 @@ def resolve_race(year: int, race: str | int) -> int:
 
     mask = pd.Series(False, index=calendar.index)
     for column in ["EventName", "Location", "Country"]:
-        mask |= calendar[column].str.lower().str.contains(
-            query, regex=False, na=False
-        )
+        mask |= calendar[column].str.lower().str.contains(query, regex=False, na=False)
     matches = calendar[mask]
 
     if len(matches) == 1:
@@ -104,8 +110,7 @@ def resolve_race(year: int, race: str | int) -> int:
         )
     names = ", ".join(matches["EventName"])
     raise SessionLoadError(
-        f"'{race}' matches several races in {year}: {names}. "
-        "Be more specific."
+        f"'{race}' matches several races in {year}: {names}. Be more specific."
     )
 
 
@@ -154,9 +159,7 @@ def load_session(
     round_number = resolve_race(year, grand_prix)
     try:
         session = fastf1.get_session(year, round_number, session_type)
-        session.load(
-            laps=True, telemetry=False, weather=False, messages=messages
-        )
+        session.load(laps=True, telemetry=False, weather=False, messages=messages)
     except ValueError as exc:
         raise SessionLoadError(
             f"No {session_type} session found for {year} round "
@@ -192,11 +195,13 @@ def list_races(year: int) -> pd.DataFrame:
     try:
         schedule = fastf1.get_event_schedule(year, include_testing=False)
     except Exception as exc:
-        raise SessionLoadError(
-            f"Could not load the {year} calendar: {exc}"
-        ) from exc
+        raise SessionLoadError(f"Could not load the {year} calendar: {exc}") from exc
     columns = [
-        "RoundNumber", "EventName", "Country", "Location", "EventDate",
+        "RoundNumber",
+        "EventName",
+        "Country",
+        "Location",
+        "EventDate",
         "EventFormat",
     ]
     return schedule[columns].reset_index(drop=True)
