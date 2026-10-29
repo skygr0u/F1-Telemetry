@@ -13,3 +13,16 @@ where = ["src"]
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+
+[tool.ruff.lint]
+# E/W: PEP 8 errors and warnings, F: unused or undefined names,
+# I: import order, N: PEP 8 names, D: docstrings
+select = ["E", "W", "F", "I", "N", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests and notebooks don't need docstrings on every function or cell
+"tests/**" = ["D"]
+"*.ipynb" = ["D"]
