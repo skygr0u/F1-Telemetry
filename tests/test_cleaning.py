@@ -3,7 +3,12 @@
 import pandas as pd
 import pytest
 
-from f1_telemetry.cleaning import clean_compound, prepare_laps
+from f1_telemetry.cleaning import (
+    clean_compound,
+    get_clean_laps,
+    is_clean_lap,
+    prepare_laps,
+)
 
 
 def make_laps():
@@ -53,3 +58,46 @@ def test_prepare_laps_missing_column_raises():
     laps = make_laps().drop(columns="Stint")
     with pytest.raises(ValueError, match="Stint"):
         prepare_laps(laps)
+
+
+def make_rule_laps():
+    """Eight laps: two are clean, each of the other six breaks one rule."""
+
+    def seconds(values):
+        return pd.to_timedelta(pd.Series(values, dtype=float), unit="s")
+
+    return pd.DataFrame(
+        {
+            "LapNumber": [1, 2, 3, 4, 5, 6, 7, 8],
+            "LapTime": seconds([95, 95, 95, 95, 95, 95, None, 95]),
+            "PitInTime": seconds([None, None, 3000, None, None, None, None, None]),
+            "PitOutTime": seconds([None, None, None, 3100, None, None, None, None]),
+            "TrackStatus": ["1", "1", "1", "1", "12", "1", "1", "1"],
+            "Deleted": [False, False, False, False, False, True, False, False],
+        }
+    )
+
+
+def test_is_clean_lap_applies_each_rule():
+    # Order: first lap, clean, in lap, out lap, yellow flag, deleted,
+    # no lap time, clean.
+    mask = is_clean_lap(make_rule_laps())
+    assert mask.tolist() == [False, True, False, False, False, False, False, True]
+
+
+def test_get_clean_laps_keeps_original_index():
+    clean = get_clean_laps(make_rule_laps())
+    assert clean.index.tolist() == [1, 7]
+
+
+def test_is_clean_lap_rejects_numeric_track_status():
+    laps = make_rule_laps()
+    laps["TrackStatus"] = 1
+    with pytest.raises(ValueError, match="TrackStatus"):
+        is_clean_lap(laps)
+
+
+def test_is_clean_lap_missing_column_raises():
+    laps = make_rule_laps().drop(columns="PitInTime")
+    with pytest.raises(ValueError, match="PitInTime"):
+        is_clean_lap(laps)
