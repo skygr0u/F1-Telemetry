@@ -18,6 +18,15 @@ CLEAN_LAP_COLUMNS = [
     "Deleted",
 ]
 
+STINT_COLUMNS = [
+    "Driver",
+    "Stint",
+    "LapNumber",
+    "Compound",
+    "TyreLife",
+    "FreshTyre",
+]
+
 
 def _require_columns(laps: pd.DataFrame, columns: list[str]) -> None:
     """Raise ValueError if the lap table lacks one of the columns."""
@@ -146,3 +155,60 @@ def get_clean_laps(laps: pd.DataFrame) -> pd.DataFrame:
         If ``laps`` cannot be checked, see ``is_clean_lap``.
     """
     return laps[is_clean_lap(laps)].copy()
+
+
+def build_stints(laps: pd.DataFrame) -> pd.DataFrame:
+    """
+    Summarise each stint (one set of tyres) of each driver in one row.
+
+    All laps are used, clean or not, because a stint lasts from the out lap
+    to the in lap. Laps are put in race order first, so "first" and "last"
+    mean the start and the end of the stint.
+
+    Parameters
+    ----------
+    laps : pandas.DataFrame
+        Lap table after ``prepare_laps`` (``Stint`` and ``LapNumber`` must be
+        integers and ``Compound`` must be clean).
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per driver and stint, sorted by driver and stint, with the
+        columns Driver, Stint, Compound, FirstLap, LastLap, Laps,
+        TyreLifeStart, TyreLifeEnd and FreshTyre. ``Laps`` is the number of
+        laps in the stint. ``TyreLifeStart`` above 1 or ``FreshTyre`` False
+        means the set had been used before the stint.
+
+    Raises
+    ------
+    ValueError
+        If a needed column is missing.
+    """
+    _require_columns(laps, STINT_COLUMNS)
+    stints = (
+        laps.sort_values(["Driver", "LapNumber"])
+        .groupby(["Driver", "Stint"], as_index=False)
+        .agg(
+            Compound=("Compound", "first"),
+            FirstLap=("LapNumber", "min"),
+            LastLap=("LapNumber", "max"),
+            TyreLifeStart=("TyreLife", "first"),
+            TyreLifeEnd=("TyreLife", "last"),
+            FreshTyre=("FreshTyre", "first"),
+        )
+    )
+    stints["Laps"] = stints["LastLap"] - stints["FirstLap"] + 1
+    return stints[
+        [
+            "Driver",
+            "Stint",
+            "Compound",
+            "FirstLap",
+            "LastLap",
+            "Laps",
+            "TyreLifeStart",
+            "TyreLifeEnd",
+            "FreshTyre",
+        ]
+    ]

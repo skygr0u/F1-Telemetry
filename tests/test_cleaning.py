@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from f1_telemetry.cleaning import (
+    build_stints,
     clean_compound,
     get_clean_laps,
     is_clean_lap,
@@ -101,3 +102,37 @@ def test_is_clean_lap_missing_column_raises():
     laps = make_rule_laps().drop(columns="PitInTime")
     with pytest.raises(ValueError, match="PitInTime"):
         is_clean_lap(laps)
+
+
+def make_stint_laps():
+    """Seven laps of two drivers, in shuffled order, with three stints."""
+    return pd.DataFrame(
+        {
+            "Driver": ["VER", "VER", "VER", "VER", "VER", "LEC", "LEC"],
+            "LapNumber": [3, 1, 2, 5, 4, 1, 2],
+            "Stint": [1, 1, 1, 2, 2, 1, 1],
+            "Compound": ["SOFT", "SOFT", "SOFT", "HARD", "HARD", "MEDIUM", "MEDIUM"],
+            "TyreLife": [3.0, 1.0, 2.0, 6.0, 5.0, 1.0, 2.0],
+            "FreshTyre": [True, True, True, False, False, True, True],
+        }
+    )
+
+
+def test_build_stints_gives_one_row_per_driver_and_stint():
+    stints = build_stints(make_stint_laps())
+    assert stints["Driver"].tolist() == ["LEC", "VER", "VER"]
+    assert stints["Stint"].tolist() == [1, 1, 2]
+    assert stints["Compound"].tolist() == ["MEDIUM", "SOFT", "HARD"]
+    assert stints["FirstLap"].tolist() == [1, 1, 4]
+    assert stints["LastLap"].tolist() == [2, 3, 5]
+    assert stints["Laps"].tolist() == [2, 3, 2]
+    # The rows were shuffled, so these only work if the laps are sorted first.
+    assert stints["TyreLifeStart"].tolist() == [1.0, 1.0, 5.0]
+    assert stints["TyreLifeEnd"].tolist() == [2.0, 3.0, 6.0]
+    assert stints["FreshTyre"].tolist() == [True, True, False]
+
+
+def test_build_stints_missing_column_raises():
+    laps = make_stint_laps().drop(columns="TyreLife")
+    with pytest.raises(ValueError, match="TyreLife"):
+        build_stints(laps)
