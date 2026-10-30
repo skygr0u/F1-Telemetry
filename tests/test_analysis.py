@@ -6,6 +6,7 @@ import pytest
 from f1_telemetry.analysis import (
     compound_degradation,
     driver_pace,
+    fuel_corrected_degradation,
     stint_degradation,
     strategy_summary,
 )
@@ -173,3 +174,68 @@ def test_compound_degradation_handles_empty_table():
 def test_compound_degradation_missing_column_raises():
     with pytest.raises(ValueError, match="Slope"):
         compound_degradation(make_slopes().drop(columns="Slope"))
+
+
+def make_fuel_laps():
+    """
+    Two drivers, three stints each, built from an exact formula:
+    lap time = driver base + compound offset + slope * tyre age - 0.05 * lap.
+    SOFT slope 0.10, HARD slope 0.03. One VER lap is under safety car.
+    """
+    bases = {"VER": 90.0, "LEC": 91.0}
+    plan = [
+        ("SOFT", 2, 10, 0.10, 0.0),
+        ("HARD", 12, 18, 0.03, 0.5),
+        ("SOFT", 30, 10, 0.10, 0.0),
+    ]
+    names = ["Driver", "Compound", "LapNumber", "TyreLife", "LapTimeSeconds"]
+    columns = {name: [] for name in names}
+    for driver, base in bases.items():
+        for compound, first_lap, n_laps, slope, offset in plan:
+            for i in range(n_laps):
+                lap_number = first_lap + i
+                tyre_life = float(i + 1)
+                columns["Driver"].append(driver)
+                columns["Compound"].append(compound)
+                columns["LapNumber"].append(lap_number)
+                columns["TyreLife"].append(tyre_life)
+                columns["LapTimeSeconds"].append(
+                    base + offset + slope * tyre_life - 0.05 * lap_number
+                )
+    laps = pd.DataFrame(columns)
+
+    slow = (laps["Driver"] == "VER") & (laps["LapNumber"] == 6)
+    laps["TrackStatus"] = "1"
+    laps.loc[slow, "TrackStatus"] = "4"
+    laps.loc[slow, "LapTimeSeconds"] = 300.0
+
+    no_time = pd.to_timedelta(pd.Series([None] * len(laps), dtype=float), unit="s")
+    laps["LapTime"] = pd.to_timedelta(laps["LapTimeSeconds"], unit="s")
+    laps["PitInTime"] = no_time
+    laps["PitOutTime"] = no_time
+    laps["Deleted"] = False
+    return laps
+
+
+def test_fuel_model_recovers_tyre_slopes_and_lap_number_effect():
+    result = fuel_corrected_degradation(make_fuel_laps())
+    assert result["Term"].tolist() == ["SOFT", "HARD", "LapNumber"]
+    assert result["Slope"].tolist() == pytest.approx([0.10, 0.03, -0.05], abs=1e-6)
+    assert result["Laps"].tolist() == [39, 36, 75]  # the safety-car lap is out
+
+
+def test_fuel_model_leaves_out_compounds_with_few_laps():
+    result = fuel_corrected_degradation(make_fuel_laps(), min_laps=37)
+    assert result["Term"].tolist() == ["SOFT", "LapNumber"]
+
+
+def test_fuel_model_cannot_separate_effects_in_one_stint():
+    laps = make_fuel_laps()
+    one_stint = laps[(laps["Driver"] == "LEC") & (laps["LapNumber"] <= 11)]
+    with pytest.raises(ValueError, match="separate"):
+        fuel_corrected_degradation(one_stint)
+
+
+def test_fuel_model_missing_column_raises():
+    with pytest.raises(ValueError, match="LapNumber"):
+        fuel_corrected_degradation(make_fuel_laps().drop(columns="LapNumber"))
