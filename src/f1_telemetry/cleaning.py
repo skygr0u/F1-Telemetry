@@ -27,6 +27,10 @@ STINT_COLUMNS = [
     "FreshTyre",
 ]
 
+WET_COMPOUNDS = ("WET", "INTERMEDIATE")
+# A race counts as wet when at least this share of its laps is on wet tyres.
+WET_RACE_THRESHOLD = 0.10
+
 
 def _require_columns(laps: pd.DataFrame, columns: list[str]) -> None:
     """Raise ValueError if the lap table lacks one of the columns."""
@@ -212,3 +216,59 @@ def build_stints(laps: pd.DataFrame) -> pd.DataFrame:
             "FreshTyre",
         ]
     ]
+
+
+def wet_lap_share(laps: pd.DataFrame) -> float:
+    """
+    Compute the share of laps run on wet-weather tyres.
+
+    Parameters
+    ----------
+    laps : pandas.DataFrame
+        Lap table with a ``Compound`` column. Labels are cleaned with
+        ``clean_compound`` first, so the table does not need to be prepared.
+
+    Returns
+    -------
+    float
+        A number between 0 and 1: laps on WET or INTERMEDIATE divided by all
+        laps. It is 0.0 for an empty table.
+
+    Raises
+    ------
+    ValueError
+        If the ``Compound`` column is missing.
+    """
+    _require_columns(laps, ["Compound"])
+    if laps.empty:
+        return 0.0
+    compound = clean_compound(laps["Compound"])
+    return float(compound.isin(WET_COMPOUNDS).mean())
+
+
+def is_wet_race(laps: pd.DataFrame, threshold: float = WET_RACE_THRESHOLD) -> bool:
+    """
+    Tell whether a race was wet.
+
+    A race is wet when the share of laps on WET or INTERMEDIATE tyres is at
+    least ``threshold``.
+
+    Parameters
+    ----------
+    laps : pandas.DataFrame
+        Lap table with a ``Compound`` column.
+    threshold : float, optional
+        Share of wet laps from which the race counts as wet. Defaults to
+        ``WET_RACE_THRESHOLD`` (10%).
+
+    Returns
+    -------
+    bool
+        True for a wet race, False for a dry one.
+
+    Raises
+    ------
+    ValueError
+        If the ``Compound`` column is missing.
+    """
+    return wet_lap_share(laps) >= threshold

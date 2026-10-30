@@ -8,7 +8,9 @@ from f1_telemetry.cleaning import (
     clean_compound,
     get_clean_laps,
     is_clean_lap,
+    is_wet_race,
     prepare_laps,
+    wet_lap_share,
 )
 
 
@@ -136,3 +138,32 @@ def test_build_stints_missing_column_raises():
     laps = make_stint_laps().drop(columns="TyreLife")
     with pytest.raises(ValueError, match="TyreLife"):
         build_stints(laps)
+
+
+def test_wet_lap_share_counts_wet_and_intermediate():
+    laps = pd.DataFrame({"Compound": ["wet", "INTERMEDIATE", None, "SOFT"]})
+    assert wet_lap_share(laps) == pytest.approx(0.5)
+
+
+def test_is_wet_race_threshold_is_inclusive():
+    # Exactly 1 lap in 10 (10%) on intermediates counts as wet.
+    laps = pd.DataFrame({"Compound": ["INTERMEDIATE"] + ["SOFT"] * 9})
+    assert is_wet_race(laps)
+
+
+def test_is_wet_race_false_for_dry_race_and_strict_threshold():
+    dry = pd.DataFrame({"Compound": ["SOFT"] * 10})
+    assert not is_wet_race(dry)
+    some_wet = pd.DataFrame({"Compound": ["WET"] * 2 + ["SOFT"] * 8})
+    assert not is_wet_race(some_wet, threshold=0.5)
+
+
+def test_wet_race_functions_handle_empty_table():
+    laps = pd.DataFrame({"Compound": []})
+    assert wet_lap_share(laps) == 0.0
+    assert not is_wet_race(laps)
+
+
+def test_wet_lap_share_missing_column_raises():
+    with pytest.raises(ValueError, match="Compound"):
+        wet_lap_share(pd.DataFrame({"Driver": ["VER"]}))
