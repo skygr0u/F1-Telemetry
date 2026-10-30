@@ -1,5 +1,6 @@
 """Tests for the data loader that do not need the network."""
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -43,7 +44,7 @@ def test_roundtrip_restores_timedeltas_and_driver_number(tmp_path):
         {
             "Driver": ["VER", "LEC"],
             "DriverNumber": ["1", "16"],
-            "LapTime": pd.to_timedelta(["00:01:35.123", pd.NaT]),
+            "LapTime": pd.to_timedelta(pd.Series([95.123, np.nan]), unit="s"),
         }
     )
     path = save_dataframe(laps, tmp_path / "sub" / "laps.csv")
@@ -83,3 +84,16 @@ def test_resolve_race_ambiguous_name_raises(fake_calendar):
 def test_resolve_race_unknown_round_raises(fake_calendar):
     with pytest.raises(SessionLoadError, match="does not exist"):
         resolve_race(2022, 99)
+
+
+def test_resolve_race_accepts_numpy_integer(fake_calendar):
+    round_number = resolve_race(2022, np.int64(7))  # type: ignore
+    assert round_number == 7
+    assert type(round_number) is int
+
+
+def test_resolve_race_rejects_other_types(fake_calendar):
+    with pytest.raises(SessionLoadError):
+        resolve_race(2022, 3.5)  # type: ignore[arg-type]
+    with pytest.raises(SessionLoadError):
+        resolve_race(2022, None)  # type: ignore[arg-type]

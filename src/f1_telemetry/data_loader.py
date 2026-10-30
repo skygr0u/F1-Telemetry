@@ -1,5 +1,6 @@
 """Load Formula 1 sessions through FastF1 and read or write CSV snapshots."""
 
+from numbers import Integral
 from pathlib import Path
 
 import fastf1
@@ -73,7 +74,7 @@ def resolve_race(year: int, race: str | int) -> int:
         Season, for example 2022.
     race : str or int
         Part of the race name, location or country (any letter case), or the
-        round number as an integer.
+        round number as an integer (a NumPy integer is also accepted).
 
     Returns
     -------
@@ -83,19 +84,24 @@ def resolve_race(year: int, race: str | int) -> int:
     Raises
     ------
     SessionLoadError
-        If nothing matches, several races match, or the round number does not
-        exist.
+        If ``race`` is neither a name nor a round number, nothing matches,
+        several races match, or the round number does not exist.
     """
-    calendar = list_races(year)
-    if isinstance(race, int):
-        if race in calendar["RoundNumber"].tolist():
-            return race
-        raise SessionLoadError(f"Round {race} does not exist in {year}.")
+    if isinstance(race, Integral) and not isinstance(race, bool):
+        round_number = int(race)
+        if round_number in list_races(year)["RoundNumber"].tolist():
+            return round_number
+        raise SessionLoadError(f"Round {round_number} does not exist in {year}.")
 
+    if not isinstance(race, str):
+        raise SessionLoadError(
+            f"The race must be a name or a round number, not {type(race).__name__}."
+        )
     query = race.strip().lower()
     if not query:
         raise SessionLoadError("The race name is empty.")
 
+    calendar = list_races(year)
     mask = pd.Series(False, index=calendar.index)
     for column in ["EventName", "Location", "Country"]:
         mask |= calendar[column].str.lower().str.contains(query, regex=False, na=False)
