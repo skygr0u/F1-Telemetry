@@ -278,7 +278,7 @@ def plot_degradation_comparison(
     ax.set_ylabel("Degradation (s per lap of tyre age)")
     ax.grid(axis="y", alpha=0.3)
     ax.set_axisbelow(True)
-    ax.legend()
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15))
     if title is not None:
         ax.set_title(title)
     fig.tight_layout()
