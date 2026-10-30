@@ -59,6 +59,13 @@ def test_roundtrip_restores_timedeltas_and_driver_number(tmp_path):
     assert pd.isna(loaded["LapTime"].iloc[1])
 
 
+def test_roundtrip_keeps_track_status_as_text(tmp_path):
+    laps = pd.DataFrame({"TrackStatus": ["1", "12", "124"]})
+    path = save_dataframe(laps, tmp_path / "laps.csv")
+    loaded = load_dataframe(path)
+    assert loaded["TrackStatus"].tolist() == ["1", "12", "124"]
+
+
 def test_load_dataframe_missing_file_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         load_dataframe(tmp_path / "missing.csv")

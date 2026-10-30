@@ -31,6 +31,9 @@ LAP_TIMEDELTA_COLUMNS = [
 ]
 LAP_DATETIME_COLUMNS = ["LapStartDate"]
 RESULT_TIMEDELTA_COLUMNS = ["Q1", "Q2", "Q3", "Time"]
+# Columns that look like numbers in a CSV but are text in FastF1. Reading them
+# as numbers would change their meaning ("1" is a clear track, 1.0 is not).
+TEXT_COLUMNS = {"DriverNumber": str, "TrackStatus": str}
 
 
 class SessionLoadError(Exception):
@@ -326,7 +329,8 @@ def load_dataframe(
     Returns
     -------
     pandas.DataFrame
-        The table, with ``DriverNumber`` kept as text as in FastF1.
+        The table, with ``DriverNumber`` and ``TrackStatus`` kept as text as
+        in FastF1.
 
     Raises
     ------
@@ -338,7 +342,7 @@ def load_dataframe(
         raise FileNotFoundError(
             f"Snapshot not found: {path}. Create it with save_dataframe first."
         )
-    df = pd.read_csv(path, dtype={"DriverNumber": str})
+    df = pd.read_csv(path, dtype=TEXT_COLUMNS)
     for column in timedelta_columns or []:
         if column in df.columns:
             df[column] = pd.to_timedelta(df[column])
