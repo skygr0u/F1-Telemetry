@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from f1_telemetry.analysis import driver_pace, strategy_summary
+from f1_telemetry.analysis import driver_pace, stint_degradation, strategy_summary
 
 
 def make_driver_laps(driver, team, seconds):
@@ -79,3 +79,62 @@ def test_strategy_summary_counts_stops_and_orders_compounds():
 def test_strategy_summary_missing_column_raises():
     with pytest.raises(ValueError, match="Compound"):
         strategy_summary(make_stints().drop(columns="Compound"))
+
+
+def make_degradation_laps():
+    """
+    Three stints with exact straight lines of lap time against tyre age.
+
+    VER stint 1: +0.10 s per lap of age (10 laps, one of them under safety
+    car with a silly time). VER stint 2: only 5 laps. LEC stint 1: -0.05 s per
+    lap of age (10 laps), like a car that gets faster as fuel burns.
+    """
+    plan = [
+        ("VER", 1, "SOFT", 2, 10, 0.10),
+        ("VER", 2, "HARD", 12, 5, 0.02),
+        ("LEC", 1, "MEDIUM", 2, 10, -0.05),
+    ]
+    columns = {"Driver": [], "Stint": [], "Compound": [], "LapNumber": []}
+    columns.update({"TyreLife": [], "LapTimeSeconds": []})
+    for name, number, tyre, first_lap, n_laps, slope in plan:
+        for i in range(n_laps):
+            columns["Driver"].append(name)
+            columns["Stint"].append(number)
+            columns["Compound"].append(tyre)
+            columns["LapNumber"].append(first_lap + i)
+            columns["TyreLife"].append(float(i + 1))
+            columns["LapTimeSeconds"].append(90.0 + slope * (i + 1))
+    laps = pd.DataFrame(columns)
+
+    # One lap of VER stint 1 is under safety car and very slow.
+    slow = (laps["Driver"] == "VER") & (laps["Stint"] == 1) & (laps["TyreLife"] == 5.0)
+    laps.loc[slow, "LapTimeSeconds"] = 200.0
+    laps.loc[slow, "TrackStatus"] = "4"
+
+    no_time = pd.to_timedelta(pd.Series([None] * len(laps), dtype=float), unit="s")
+    laps["LapTime"] = pd.to_timedelta(laps["LapTimeSeconds"], unit="s")
+    laps["PitInTime"] = no_time
+    laps["PitOutTime"] = no_time
+    laps["Deleted"] = False
+    laps["TrackStatus"] = laps["TrackStatus"].fillna("1")
+    return laps
+
+
+def test_stint_degradation_recovers_slope_and_ignores_unclean_laps():
+    fits = stint_degradation(make_degradation_laps())
+    assert fits["Driver"].tolist() == ["LEC", "VER"]
+    assert fits["Laps"].tolist() == [10, 9]  # VER lost the safety-car lap
+    assert fits["Slope"].tolist() == pytest.approx([-0.05, 0.10])
+    assert fits["Intercept"].tolist() == pytest.approx([90.0, 90.0])
+    assert fits["RSquared"].tolist() == pytest.approx([1.0, 1.0])
+    assert fits["Compound"].tolist() == ["MEDIUM", "SOFT"]
+
+
+def test_stint_degradation_leaves_out_short_stints():
+    assert len(stint_degradation(make_degradation_laps())) == 2
+    assert len(stint_degradation(make_degradation_laps(), min_laps=5)) == 3
+
+
+def test_stint_degradation_missing_column_raises():
+    with pytest.raises(ValueError, match="TyreLife"):
+        stint_degradation(make_degradation_laps().drop(columns="TyreLife"))

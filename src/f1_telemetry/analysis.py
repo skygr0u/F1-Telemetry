@@ -1,6 +1,7 @@
 """Analysis functions: race pace, tyre strategy, degradation and grid effect."""
 
 import pandas as pd
+from scipy import stats
 
 from f1_telemetry.cleaning import get_clean_laps, require_columns
 
@@ -8,6 +9,9 @@ PACE_COLUMNS = ["Driver", "Team", "LapTimeSeconds"]
 # A median of two or three laps is not a pace, so drivers below are left out.
 MIN_CLEAN_LAPS = 5
 STRATEGY_COLUMNS = ["Driver", "Stint", "Compound", "Laps"]
+DEGRADATION_COLUMNS = ["Driver", "Stint", "Compound", "TyreLife", "LapTimeSeconds"]
+# A line through fewer clean laps is too noisy to mean anything.
+MIN_STINT_LAPS = 8
 
 
 def driver_pace(laps: pd.DataFrame, min_laps: int = MIN_CLEAN_LAPS) -> pd.DataFrame:
@@ -92,3 +96,74 @@ def strategy_summary(stints: pd.DataFrame) -> pd.DataFrame:
     )
     summary["Stops"] = summary["Stops"] - 1
     return summary
+
+
+def stint_degradation(
+    laps: pd.DataFrame, min_laps: int = MIN_STINT_LAPS
+) -> pd.DataFrame:
+    """
+    Fit a straight line of lap time against tyre age for each stint.
+
+    Only clean laps are used. The slope is the degradation: the seconds a lap
+    gets slower for each extra lap of tyre age. It is a naive estimate,
+    because the car also gets faster as fuel burns, which hides part of the
+    wear. The fit is meant for dry races only, so the caller should check
+    ``is_wet_race`` first.
+
+    Parameters
+    ----------
+    laps : pandas.DataFrame
+        Lap table after ``prepare_laps`` (it needs ``LapTimeSeconds`` and
+        ``TyreLife``).
+    min_laps : int, optional
+        Stints with fewer clean laps are left out. Defaults to
+        ``MIN_STINT_LAPS``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per fitted stint with the columns Driver, Stint, Compound,
+        Laps (clean laps used), Slope (seconds per lap of tyre age),
+        Intercept (fitted lap time at tyre age zero, in seconds), RSquared
+        (how much of the lap time variation the line explains) and StdErr
+        (the uncertainty of the slope).
+
+    Raises
+    ------
+    ValueError
+        If a needed column is missing, see ``get_clean_laps``.
+    """
+    require_columns(laps, DEGRADATION_COLUMNS)
+    clean = get_clean_laps(laps)
+
+    rows = []
+    for _, stint in clean.groupby(["Driver", "Stint"]):
+        stint = stint.dropna(subset=["TyreLife"])
+        if len(stint) < min_laps or stint["TyreLife"].nunique() < 2:
+            continue
+        slope, intercept, rvalue, _pvalue, stderr = stats.linregress(
+            stint["TyreLife"], stint["LapTimeSeconds"]
+        )
+        rows.append(
+            {
+                "Driver": stint["Driver"].iloc[0],
+                "Stint": stint["Stint"].iloc[0],
+                "Compound": stint["Compound"].iloc[0],
+                "Laps": len(stint),
+                "Slope": slope,
+                "Intercept": intercept,
+                "RSquared": rvalue**2,  # type: ignore
+                "StdErr": stderr,
+            }
+        )
+    columns = [
+        "Driver",
+        "Stint",
+        "Compound",
+        "Laps",
+        "Slope",
+        "Intercept",
+        "RSquared",
+        "StdErr",
+    ]
+    return pd.DataFrame(rows, columns=columns)
