@@ -7,6 +7,7 @@ from f1_telemetry.cleaning import get_clean_laps, require_columns
 PACE_COLUMNS = ["Driver", "Team", "LapTimeSeconds"]
 # A median of two or three laps is not a pace, so drivers below are left out.
 MIN_CLEAN_LAPS = 5
+STRATEGY_COLUMNS = ["Driver", "Stint", "Compound", "Laps"]
 
 
 def driver_pace(laps: pd.DataFrame, min_laps: int = MIN_CLEAN_LAPS) -> pd.DataFrame:
@@ -52,3 +53,42 @@ def driver_pace(laps: pd.DataFrame, min_laps: int = MIN_CLEAN_LAPS) -> pd.DataFr
     pace = pace[pace["CleanLaps"] >= min_laps].copy()
     pace["GapToBest"] = pace["MedianTime"] - pace["MedianTime"].min()
     return pace.sort_values("MedianTime").reset_index(drop=True)
+
+
+def strategy_summary(stints: pd.DataFrame) -> pd.DataFrame:
+    """
+    Summarise the tyre strategy of each driver in one row.
+
+    ``Stops`` counts every tyre change, so a free tyre change under a red
+    flag counts like a normal pit stop.
+
+    Parameters
+    ----------
+    stints : pandas.DataFrame
+        The table from ``build_stints``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per driver, sorted by driver, with the columns Driver, Stops
+        (number of stints minus one), Strategy (the compounds in race order,
+        for example "SOFT > MEDIUM > SOFT") and Laps (total laps of all
+        stints).
+
+    Raises
+    ------
+    ValueError
+        If a needed column is missing.
+    """
+    require_columns(stints, STRATEGY_COLUMNS)
+    summary = (
+        stints.sort_values(["Driver", "Stint"])
+        .groupby("Driver", as_index=False)
+        .agg(
+            Stops=("Stint", "count"),
+            Strategy=("Compound", " > ".join),
+            Laps=("Laps", "sum"),
+        )
+    )
+    summary["Stops"] = summary["Stops"] - 1
+    return summary

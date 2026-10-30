@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from f1_telemetry.analysis import driver_pace
+from f1_telemetry.analysis import driver_pace, strategy_summary
 
 
 def make_driver_laps(driver, team, seconds):
@@ -54,3 +54,28 @@ def test_driver_pace_leaves_out_drivers_with_few_clean_laps():
 def test_driver_pace_missing_column_raises():
     with pytest.raises(ValueError, match="Team"):
         driver_pace(make_race().drop(columns="Team"))
+
+
+def make_stints():
+    """Stint table of two drivers, with the rows in shuffled order."""
+    return pd.DataFrame(
+        {
+            "Driver": ["VER", "LEC", "VER", "VER", "LEC"],
+            "Stint": [2, 2, 1, 3, 1],
+            "Compound": ["HARD", "HARD", "SOFT", "MEDIUM", "MEDIUM"],
+            "Laps": [20, 37, 13, 24, 20],
+        }
+    )
+
+
+def test_strategy_summary_counts_stops_and_orders_compounds():
+    summary = strategy_summary(make_stints())
+    assert summary["Driver"].tolist() == ["LEC", "VER"]
+    assert summary["Stops"].tolist() == [1, 2]
+    assert summary["Strategy"].tolist() == ["MEDIUM > HARD", "SOFT > HARD > MEDIUM"]
+    assert summary["Laps"].tolist() == [57, 57]
+
+
+def test_strategy_summary_missing_column_raises():
+    with pytest.raises(ValueError, match="Compound"):
+        strategy_summary(make_stints().drop(columns="Compound"))
