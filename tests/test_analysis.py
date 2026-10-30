@@ -3,7 +3,12 @@
 import pandas as pd
 import pytest
 
-from f1_telemetry.analysis import driver_pace, stint_degradation, strategy_summary
+from f1_telemetry.analysis import (
+    compound_degradation,
+    driver_pace,
+    stint_degradation,
+    strategy_summary,
+)
 
 
 def make_driver_laps(driver, team, seconds):
@@ -138,3 +143,33 @@ def test_stint_degradation_leaves_out_short_stints():
 def test_stint_degradation_missing_column_raises():
     with pytest.raises(ValueError, match="TyreLife"):
         stint_degradation(make_degradation_laps().drop(columns="TyreLife"))
+
+
+def make_slopes():
+    """Slopes of five stints, with HARD first on purpose."""
+    return pd.DataFrame(
+        {
+            "Compound": ["HARD", "SOFT", "SOFT", "MEDIUM", "SOFT"],
+            "Slope": [0.02, 0.10, 0.14, 0.05, 0.30],
+        }
+    )
+
+
+def test_compound_degradation_summarises_and_orders_compounds():
+    summary = compound_degradation(make_slopes())
+    assert summary["Compound"].tolist() == ["SOFT", "MEDIUM", "HARD"]
+    assert summary["Stints"].tolist() == [3, 1, 1]
+    assert summary["MedianSlope"].tolist() == pytest.approx([0.14, 0.05, 0.02])
+    assert summary["MeanSlope"].tolist() == pytest.approx([0.18, 0.05, 0.02])
+    assert summary["MinSlope"].tolist() == pytest.approx([0.10, 0.05, 0.02])
+    assert summary["MaxSlope"].tolist() == pytest.approx([0.30, 0.05, 0.02])
+
+
+def test_compound_degradation_handles_empty_table():
+    empty = pd.DataFrame({"Compound": [], "Slope": []})
+    assert compound_degradation(empty).empty
+
+
+def test_compound_degradation_missing_column_raises():
+    with pytest.raises(ValueError, match="Slope"):
+        compound_degradation(make_slopes().drop(columns="Slope"))

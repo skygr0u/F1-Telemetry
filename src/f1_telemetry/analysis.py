@@ -12,6 +12,9 @@ STRATEGY_COLUMNS = ["Driver", "Stint", "Compound", "Laps"]
 DEGRADATION_COLUMNS = ["Driver", "Stint", "Compound", "TyreLife", "LapTimeSeconds"]
 # A line through fewer clean laps is too noisy to mean anything.
 MIN_STINT_LAPS = 8
+# The order used to show compounds: dry from softest to hardest, then wet.
+COMPOUND_ORDER = ("SOFT", "MEDIUM", "HARD", "INTERMEDIATE", "WET", "UNKNOWN")
+COMPOUND_RANK = {name: rank for rank, name in enumerate(COMPOUND_ORDER)}
 
 
 def driver_pace(laps: pd.DataFrame, min_laps: int = MIN_CLEAN_LAPS) -> pd.DataFrame:
@@ -167,3 +170,40 @@ def stint_degradation(
         "StdErr",
     ]
     return pd.DataFrame(rows, columns=columns)
+
+
+def compound_degradation(degradation: pd.DataFrame) -> pd.DataFrame:
+    """
+    Summarise the degradation slopes of the stints for each compound.
+
+    The median slope is the main number because one noisy stint hardly moves
+    it. The minimum and maximum show how much the stints differ. A compound
+    that is not in ``COMPOUND_ORDER`` is listed last.
+
+    Parameters
+    ----------
+    degradation : pandas.DataFrame
+        The table from ``stint_degradation``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per compound, from the softest, with the columns Compound,
+        Stints (number of fitted stints), MedianSlope, MeanSlope, MinSlope
+        and MaxSlope (all slopes in seconds per lap of tyre age).
+
+    Raises
+    ------
+    ValueError
+        If the Compound or Slope column is missing.
+    """
+    require_columns(degradation, ["Compound", "Slope"])
+    summary = degradation.groupby("Compound", as_index=False).agg(
+        Stints=("Slope", "count"),
+        MedianSlope=("Slope", "median"),
+        MeanSlope=("Slope", "mean"),
+        MinSlope=("Slope", "min"),
+        MaxSlope=("Slope", "max"),
+    )
+    summary = summary.sort_values("Compound", key=lambda c: c.map(COMPOUND_RANK))
+    return summary.reset_index(drop=True)
