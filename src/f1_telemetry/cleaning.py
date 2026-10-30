@@ -32,8 +32,22 @@ WET_COMPOUNDS = ("WET", "INTERMEDIATE")
 WET_RACE_THRESHOLD = 0.10
 
 
-def _require_columns(laps: pd.DataFrame, columns: list[str]) -> None:
-    """Raise ValueError if the lap table lacks one of the columns."""
+def require_columns(laps: pd.DataFrame, columns: list[str]) -> None:
+    """
+    Check that a lap table has all the columns a function needs.
+
+    Parameters
+    ----------
+    laps : pandas.DataFrame
+        The table to check.
+    columns : list of str
+        Names of the columns that must be present.
+
+    Raises
+    ------
+    ValueError
+        If one or more of the columns are missing. The message names them.
+    """
     missing = [column for column in columns if column not in laps.columns]
     if missing:
         raise ValueError(f"The lap table has no column(s): {', '.join(missing)}.")
@@ -87,7 +101,7 @@ def prepare_laps(laps: pd.DataFrame) -> pd.DataFrame:
     ValueError
         If one of the columns in ``REQUIRED_LAP_COLUMNS`` is missing.
     """
-    _require_columns(laps, REQUIRED_LAP_COLUMNS)
+    require_columns(laps, REQUIRED_LAP_COLUMNS)
 
     prepared = laps.copy()
     prepared["LapNumber"] = prepared["LapNumber"].astype(int)
@@ -124,7 +138,7 @@ def is_clean_lap(laps: pd.DataFrame) -> pd.Series:
         If a needed column is missing, or ``TrackStatus`` holds numbers
         instead of text.
     """
-    _require_columns(laps, CLEAN_LAP_COLUMNS)
+    require_columns(laps, CLEAN_LAP_COLUMNS)
     if pd.api.types.is_numeric_dtype(laps["TrackStatus"]):
         raise ValueError(
             "TrackStatus must be text. Read snapshots with load_dataframe."
@@ -189,7 +203,7 @@ def build_stints(laps: pd.DataFrame) -> pd.DataFrame:
     ValueError
         If a needed column is missing.
     """
-    _require_columns(laps, STINT_COLUMNS)
+    require_columns(laps, STINT_COLUMNS)
     stints = (
         laps.sort_values(["Driver", "LapNumber"])
         .groupby(["Driver", "Stint"], as_index=False)
@@ -239,7 +253,7 @@ def wet_lap_share(laps: pd.DataFrame) -> float:
     ValueError
         If the ``Compound`` column is missing.
     """
-    _require_columns(laps, ["Compound"])
+    require_columns(laps, ["Compound"])
     if laps.empty:
         return 0.0
     compound = clean_compound(laps["Compound"])
