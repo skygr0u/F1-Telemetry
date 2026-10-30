@@ -35,8 +35,13 @@ def fake_calendar(monkeypatch):
 
 
 def test_snapshot_path_follows_naming_rule(tmp_path):
-    path = snapshot_path(2022, "Bahrain", "r", "laps", data_dir=tmp_path)
-    assert path == tmp_path / "2022_bahrain_R_laps.csv"
+    path = snapshot_path(2022, 1, "r", "laps", data_dir=tmp_path)
+    assert path == tmp_path / "2022_r01_R_laps.csv"
+
+
+def test_snapshot_path_pads_round_and_accepts_numpy_integer(tmp_path):
+    path = snapshot_path(2022, np.int64(14), "R", "results", data_dir=tmp_path)  # type: ignore
+    assert path == tmp_path / "2022_r14_R_results.csv"
 
 
 def test_roundtrip_restores_timedeltas_and_driver_number(tmp_path):

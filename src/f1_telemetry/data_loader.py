@@ -249,20 +249,24 @@ def get_results(session) -> pd.DataFrame:
 
 def snapshot_path(
     year: int,
-    grand_prix: str,
+    round_number: int,
     session_type: str,
     kind: str,
     data_dir: str | Path = DEFAULT_DATA_DIR,
 ) -> Path:
     """
-    Build the path of a CSV snapshot, e.g. ``2022_bahrain_R_laps.csv``.
+    Build the path of a CSV snapshot, e.g. ``2022_r01_R_laps.csv``.
+
+    The race is identified by its round number, so the same race always gives
+    the same file name, whatever name was typed to find it. Get the round
+    number from ``resolve_race``.
 
     Parameters
     ----------
     year : int
         Season.
-    grand_prix : str
-        Name of the Grand Prix.
+    round_number : int
+        Round of the race in the season, for example 1 for Bahrain 2022.
     session_type : str
         Session code, for example "R".
     kind : str
@@ -275,8 +279,8 @@ def snapshot_path(
     Path
         The full path of the snapshot file.
     """
-    slug = grand_prix.strip().lower().replace(" ", "_")
-    return Path(data_dir) / f"{year}_{slug}_{session_type.upper()}_{kind}.csv"
+    name = f"{year}_r{int(round_number):02d}_{session_type.upper()}_{kind}.csv"
+    return Path(data_dir) / name
 
 
 def save_dataframe(df: pd.DataFrame, path: str | Path) -> Path:
